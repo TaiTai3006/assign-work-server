@@ -3,6 +3,7 @@ const mysql = require("mysql");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const cron = require("node-cron");
+const crypto = require("crypto");
 
 const app = express();
 
@@ -25,6 +26,106 @@ db.connect((err) => {
 app.get("/", (req, res) => {
   res.send("Hello World");
 });
+
+app.get("/checkUser/:username", (req, res) => {});
+
+const checkExitUser = async (gmail) => {
+  const q = "SELECT COUNT(*) FROM `account` WHERE `gmail` = ?";
+  db.query(q, [gmail], function (err, result) {
+    if (err) return false;
+
+    console.log(result[0],result[0]["COUNT(*)"], result[0]["COUNT(*)"] > 0)
+
+    return result[0]["COUNT(*)"] > 0;
+  });
+};
+
+function generateUniqueString(length = 16) {
+  return crypto.randomBytes(length).toString("hex"); // hex dài gấp đôi số byte
+}
+
+const addUser = (gmail)=>{
+  const q = "INSERT INTO `account`(`gmail`) VALUES (?)"
+  db.query(q, [gmail], function (err, result) {
+    err && console.log(err)
+    console.log("shdgfhdgsf")
+  })
+  console.log("ngoai ne")
+}
+
+app.put("/addName",(req, res)=>{
+  const { gmail, name } = req.body;
+  const q = "UPDATE `account` SET `name`= ? WHERE `gmail`= ? "
+  db.query(q, [name, gmail], function (err, result) {
+    if (err) return false;
+    res.status(200).json({ gmail: gmail, checkToken: true });
+    return
+  })
+  res.status(200).json({ gmail: gmail, checkToken: false });
+})
+
+app.post("/checkToken", (req, res) => {
+  const { gmail, token } = req.body;
+
+  const q = "SELECT COUNT(*) AS count FROM `checkuser` WHERE `mail` = ? and `token` = ?";
+
+  db.query(q, [gmail, token], function (err, result) {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ error: "Database query error" });
+    }
+
+    const isValid = result[0].count > 0;
+
+    if (isValid) {
+      addUser(gmail);  // ✅ Nếu hợp lệ thì thêm user
+      return res.status(200).json({ gmail: gmail, checkToken: true });
+    } else {
+      return res.status(200).json({ gmail: gmail, checkToken: false });
+    }
+  });
+});
+
+
+app.post("/loginUser", async (req, res) => {
+  const { gmail } = req.body;
+
+  const checkUser = await checkExitUser(gmail);
+
+  if (!checkUser) {
+    const token = generateUniqueString();
+
+    console.log(token)
+
+    const q = "INSERT INTO `checkuser`( `mail`, `token`) VALUES (?,?)";
+
+    db.query(q, [gmail, token], function (err, result) {
+      if (err) {
+        console.error(err); // nên log lỗi
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      sendmail(
+        "Xác thực tài khoản",
+        `<div>
+          <h1>Nhấn vào link bên dưới để xác thực tài khoản mail.</h1>
+          <a href="https://assign-work-client.vercel.app/login?mail=${gmail}&token=${token}">
+            https://assign-work-client.vercel.app/login?mail=${gmail}&token=${token}
+          </a>
+        </div>`,
+        gmail, 1
+      );
+
+      return res.status(200).json({ gmail: gmail, status: false }); // ✅ return để ngăn đoạn sau chạy
+    });
+
+    return; // ✅ thêm return ở đây để ngắt luồng xử lý
+  }
+
+  // chỉ chạy nếu user đã tồn tại
+  return res.status(200).json({ gmail: gmail, status: true });
+});
+
 
 app.post("/login", (req, res) => {
   const { gmail, token } = req.body;
@@ -340,7 +441,7 @@ cron.schedule("00 23 * * *", () => {
   });
 });
 
-cron.schedule('00 10 * * 0', () => {
+cron.schedule("00 10 * * 0", () => {
   // code thực hiện công việc
   const content = `
           <div>
@@ -351,15 +452,12 @@ cron.schedule('00 10 * * 0', () => {
           </div>
         `;
 
-        sendmail(
-          "[Nhắc nhỡ] Soạn công việc cho tuần mới",
-          content,
-          "taitran3006@gmail.com",
-          1
-        );
+  sendmail(
+    "[Nhắc nhỡ] Soạn công việc cho tuần mới",
+    content,
+    "taitran3006@gmail.com",
+    1
+  );
 });
-
-
-
 
 app.listen(8000, () => console.log("server is running in port 8000"));
