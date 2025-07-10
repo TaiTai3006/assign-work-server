@@ -29,14 +29,18 @@ app.get("/", (req, res) => {
 
 app.get("/checkUser/:username", (req, res) => {});
 
-const checkExitUser = async (gmail) => {
-  const q = "SELECT COUNT(*) FROM `account` WHERE `gmail` = ?";
-  db.query(q, [gmail], function (err, result) {
-    if (err) return false;
+const checkExitUser = (gmail) => {
+  return new Promise((resolve, reject) => {
+    const q = "SELECT COUNT(*) FROM `account` WHERE `gmail` = ?";
+    db.query(q, [gmail], function (err, result) {
+      if (err) {
+        reject(err);
+        return;
+      }
 
-    console.log(result[0],result[0]["COUNT(*)"], result[0]["COUNT(*)"] > 0)
-
-    return result[0]["COUNT(*)"] > 0;
+      const exists = result[0]["COUNT(*)"] > 0;
+      resolve(exists);
+    });
   });
 };
 
@@ -44,30 +48,31 @@ function generateUniqueString(length = 16) {
   return crypto.randomBytes(length).toString("hex"); // hex dài gấp đôi số byte
 }
 
-const addUser = (gmail)=>{
-  const q = "INSERT INTO `account`(`gmail`) VALUES (?)"
+const addUser = (gmail) => {
+  const q = "INSERT INTO `account`(`gmail`) VALUES (?)";
   db.query(q, [gmail], function (err, result) {
-    err && console.log(err)
-    console.log("shdgfhdgsf")
-  })
-  console.log("ngoai ne")
-}
+    err && console.log(err);
+    console.log("shdgfhdgsf");
+  });
+  console.log("ngoai ne");
+};
 
-app.put("/addName",(req, res)=>{
+app.put("/addName", (req, res) => {
   const { gmail, name } = req.body;
-  const q = "UPDATE `account` SET `name`= ? WHERE `gmail`= ? "
+  const q = "UPDATE `account` SET `name`= ? WHERE `gmail`= ? ";
   db.query(q, [name, gmail], function (err, result) {
     if (err) return false;
     res.status(200).json({ gmail: gmail, checkToken: true });
-    return
-  })
+    return;
+  });
   res.status(200).json({ gmail: gmail, checkToken: false });
-})
+});
 
 app.post("/checkToken", (req, res) => {
   const { gmail, token } = req.body;
 
-  const q = "SELECT COUNT(*) AS count FROM `checkuser` WHERE `mail` = ? and `token` = ?";
+  const q =
+    "SELECT COUNT(*) AS count FROM `checkuser` WHERE `mail` = ? and `token` = ?";
 
   db.query(q, [gmail, token], function (err, result) {
     if (err) {
@@ -78,14 +83,13 @@ app.post("/checkToken", (req, res) => {
     const isValid = result[0].count > 0;
 
     if (isValid) {
-      addUser(gmail);  // ✅ Nếu hợp lệ thì thêm user
+      addUser(gmail); // ✅ Nếu hợp lệ thì thêm user
       return res.status(200).json({ gmail: gmail, checkToken: true });
     } else {
       return res.status(200).json({ gmail: gmail, checkToken: false });
     }
   });
 });
-
 
 app.post("/loginUser", async (req, res) => {
   const { gmail } = req.body;
@@ -125,7 +129,6 @@ app.post("/loginUser", async (req, res) => {
   // chỉ chạy nếu user đã tồn tại
   return res.status(200).json({ gmail: gmail, status: true });
 });
-
 
 app.post("/login", (req, res) => {
   const { gmail, token } = req.body;
